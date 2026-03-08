@@ -1,15 +1,22 @@
 package com.seowon.coding.domain.model;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "orders") // "order" is a reserved keyword in SQL
@@ -18,27 +25,31 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Order {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     private String customerName;
-    
+
     private String customerEmail;
-    
+
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
-    
+
     private LocalDateTime orderDate;
-    
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
-    
+
     private BigDecimal totalAmount;
 
     public static Order createOrder(String customerName, String customerEmail) {
+        if (customerName == null || customerEmail == null) {
+            throw new IllegalArgumentException("customer info required");
+        }
+
         return Order.builder()
                 .customerName(customerName)
                 .customerEmail(customerEmail)
@@ -48,7 +59,7 @@ public class Order {
                 .totalAmount(BigDecimal.ZERO)
                 .build();
     }
-    
+
     // Business logic
     public void addItem(OrderItem item) {
         items.add(item);
@@ -57,6 +68,12 @@ public class Order {
     }
 
     public void addProduct(Product product, Integer quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + quantity);
+        }
+        if (product.getStockQuantity() < quantity) {
+            throw new IllegalStateException("insufficient stock for product " + product.getId());
+        }
         product.decreaseStock(quantity);
 
         OrderItem orderItem = OrderItem.builder()
@@ -67,35 +84,52 @@ public class Order {
 
         addItem(orderItem);
     }
-    
+
     public void removeItem(OrderItem item) {
         items.remove(item);
         item.setOrder(null);
         recalculateTotalAmount();
     }
-    
+
     public void recalculateTotalAmount() {
         this.totalAmount = items.stream()
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
-    
+
+    public void checkout(String couponCode) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+
+        for (OrderItem item : items) {
+            subtotal = subtotal.add(item.getSubtotal());
+        }
+
+        BigDecimal shipping =
+                subtotal.compareTo(new BigDecimal("100.00")) >= 0
+                        ? BigDecimal.ZERO : new BigDecimal("5.00");
+        BigDecimal discount =
+                (couponCode != null && couponCode.startsWith("SALE"))
+                        ? new BigDecimal("10.00") : BigDecimal.ZERO;
+        setTotalAmount(subtotal.add(shipping).subtract(discount));
+        setStatus(Order.OrderStatus.PROCESSING);
+    }
+
     public void markAsProcessing() {
         this.status = OrderStatus.PROCESSING;
     }
-    
+
     public void markAsShipped() {
         this.status = OrderStatus.SHIPPED;
     }
-    
+
     public void markAsDelivered() {
         this.status = OrderStatus.DELIVERED;
     }
-    
+
     public void markAsCancelled() {
         this.status = OrderStatus.CANCELLED;
     }
-    
+
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
