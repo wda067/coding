@@ -1,6 +1,7 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
@@ -53,8 +54,6 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +63,19 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = Order.createOrder(customerName, customerEmail);
+        orderRepository.save(order);
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i))
+                    .orElseThrow();
+            Integer quantity = quantities.get(i);
+
+            order.addProduct(product, quantity);
+        }
+
+        return order;
     }
 
     /**

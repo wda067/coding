@@ -37,12 +37,35 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
     
     private BigDecimal totalAmount;
+
+    public static Order createOrder(String customerName, String customerEmail) {
+        return Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+    }
     
     // Business logic
     public void addItem(OrderItem item) {
         items.add(item);
         item.setOrder(this);
         recalculateTotalAmount();
+    }
+
+    public void addProduct(Product product, Integer quantity) {
+        product.decreaseStock(quantity);
+
+        OrderItem orderItem = OrderItem.builder()
+                .product(product)
+                .quantity(quantity)
+                .price(product.getPrice())
+                .build();
+
+        addItem(orderItem);
     }
     
     public void removeItem(OrderItem item) {
